@@ -1,13 +1,27 @@
 # Tentivory-Anti-RAT-TOOL
 
-Bu depo, Discord ve Telegram üzerinden veri çalan RAT (Remote Access Trojan) türevlerinin haberleşme hattı (Webhook/Token) öğelerini tespit edip etkisiz hale getirmeye yardımcı olmak üzere eğitim ve savunma amaçlı geliştirilmiş araçları içerir.
+> UYARI (ÖNEMLİ — DİKKATLE OKUYUN)
+>
+> Bu araçların yetkisiz veya izinsiz kullanımı ciddi hukuki sonuçlar doğurabilir. Bu depo ve içindeki araçlar yalnızca
+> - yazılı izin verilmiş olay müdahalesi,
+> - doğrudan yetki verilmiş güvenlik araştırması veya
+> - eğitim/deneme amaçlı izole ortamlarda
+> kullanım içindir. Herhangi bir hedefe karşı işlem yapmadan önce aşağıdakileri sağlayın:
+>
+> 1. Hedef sistemin sahibi veya yetkilisinden yazılı izin (e-posta/kontrat) alınmış olmalıdır.
+> 2. Gerçek müdahale veya hedefe yönelik değişiklikler yapmadan önce `--dry-run` kullanarak etkiyi doğrulayın.
+> 3. Gerçek işlem gerçekleştirilmeden önce en az bir onaylayıcı (2. onay) ve operasyonel kayıt (audit log) bulundurun.
+> 4. Toplu/otomatik işlemler öncesi hizmet sağlayıcıların (Discord, Telegram) kullanım koşullarını ve rate-limit politikalarını kontrol edin.
+> 5. Hukuki belirsizlik durumunda veya şüphede mutlaka bir hukuk danışmanına başvurun.
+>
+> Bu gerekliliklerin yerine getirilmemesi durumunda yazar/maintainer sorumluluk kabul etmez; izinsiz kullanım raporlanacak ve gerekli hukuki adımlar atılacaktır.
 
-Önemli: Bu araçlar yalnızca yasal yetki ve izin altında, güvenlik araştırması, olay müdahalesi veya eğitim amaçlı kullanılmalıdır. Yetkisiz kullanım suç teşkil edebilir. Kullanıcılar yerel yasalarına, hizmet sağlayıcılarının kullanım koşullarına ve etik kurallara uymaktan sorumludur.
+Bu depo, Discord ve Telegram üzerinden veri çalan RAT (Remote Access Trojan) türevlerinin haberleşme hattı (Webhook/Token) öğelerini tespit edip etkisiz hale getirmeye yardımcı olmak üzere eğitim ve savunma amaçlı geliştirilmiş araçları içerir.
 
 ## Yenilikler (önerilen iyileştirmeler)
 - Dry-run (test) modu: Gerçek tahribat yapmadan hangi hedeflerin etkilenebileceğini görmek için kullanılır.
 - Girdi doğrulama ve maskeleme: Webhook URL'leri ve token formatları doğrulanır; günlüklerde tam gizli bilgiler gösterilmez.
-- Non-interactive (CLI) kullanım: Otomasyon için `--discord`, `--telegram`, `--auto` gibi bayraklar eklendi.
+- Non-interactive (CLI) kullanım: Otomasyon için `--discord`, `--telegram`, `--auto` gibi bayraklar eklendi veya eklenebilir.
 - Hata yönetimi: Ağ zaman aşımı, istisnalar ve hata geri bildirimleri ele alınmalı/ele alındı.
 - Toplu işlem desteği: Otomatik deşifre edilen hedefleri sınırlı paralellik ile toplu işlemek mümkün.
 
@@ -20,7 +34,7 @@ Bu depo, Discord ve Telegram üzerinden veri çalan RAT (Remote Access Trojan) t
 ```bash
 pip install -r requirements.txt
 # veya (küçük proje için)
-pip install rich requests
+pip install aiohttp rich
 ```
 
 ## Hızlı kullanım
@@ -56,12 +70,12 @@ python TENTİVORY-RAT-İMHA.py --auto
 python TENTİVORY-RAT-İMHA.py --auto --concurrency 8
 ```
 
-## Önerilen kullanım ve güvenlik
-- Önce `--dry-run` ile çalıştırarak hedeflerin doğruluğunu ve etkiyi gözlemleyin.
-- Üretim/gerçek operasyonlarda `--yes` bayrağını yalnızca tam yetkili olduğunuz durumlarda kullanın.
+## Kritik kullanım talimatları ve sorumluluk
+- Her zaman önce `--dry-run` ile çalıştırın; gerçek etkileri gözlemlemeden doğrudan silme/spam işlemi başlatmayın.
+- `--yes` bayrağını yalnızca yazılı izin sahibiyseniz ve gerekli onay süreçleri tamamlandıysa kullanın.
 - Loglama yapılırken tam token/webhook bilgilerini göstermeyin; araç maskelenmiş çıktılar üretmelidir.
-- Ağ çağrıları için uygun zaman aşımları ve yeniden deneme (retry) mantığı uygulayın.
-- Hizmet sağlayıcılarının (Discord/Telegram) kullanım koşullarına uymaya dikkat edin; toplu veya otomatik istekler rate limit'e takılabilir.
+- Ağ çağrıları için uygun zaman aşımları ve yeniden deneme (retry) mantığı kullanın; 429 (Rate Limit) durumunda `Retry-After` başlığına uyun.
+- Hizmet sağlayıcılarının (Discord/Telegram) politikalarına uyun; toplu veya otomatik istekler rate limit'e, IP bloklamaya veya hesap yaptırımlarına yol açabilir.
 
 ## Geliştirme ve Test
 - Birim testleri: Validation fonksiyonları, `dry-run` davranışı ve wrapper'lar için test yazılması önerilir.
@@ -72,7 +86,7 @@ python TENTİVORY-RAT-İMHA.py --auto --concurrency 8
 - Güvenlik açığı bildirimleri için doğrudan repo sahibi ile iletişime geçin; yanlış kullanım raporlamaları hassasiyetle ele alınacaktır.
 
 ## Lisans
-Bu projede açıkça belirtilmiş bir lisans yoksa, araçların kullanımı ve paylaşımıyla ilgili açık izin almadığınız sürece dikkatli olunuz. Bir lisans eklenmesi önerilir (ör. MIT, Apache-2.0) ve yasal sorumlulukların netleştirilmesi tavsiye edilir.
+Bu proje için repo sahibi tarafından eklenen lisans: `LICENSE` dosyasında "All Rights Reserved" bildirimi bulunmaktadır. Yetkisiz kopyalama, dağıtım veya türev yapma yasaktır. İzin talepleri için repo sahibi ile iletişime geçin.
 
 ## İletişim
 Sorular, hatalar veya sorumluluk bildirimleri için repo sahibi ile GitHub üzerinden iletişime geçin.
