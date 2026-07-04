@@ -6,19 +6,20 @@ import asyncio
 import re
 import sys
 import time
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import aiohttp
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 
 console = Console()
 
 DISCORD_WEBHOOK_RE = re.compile(
-    r"^https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_-]+/?$",
+    r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_-]+/?",
     re.IGNORECASE,
 )
-TELEGRAM_TOKEN_RE = re.compile(r"^\d{5,}:[A-Za-z0-9_-]{35,}$")
+TELEGRAM_TOKEN_RE = re.compile(r"\d{5,}:[A-Za-z0-9_-]{35,}")
 
 MAX_RETRIES = 5
 RETRY_BACKOFF = 1.5
@@ -140,6 +141,33 @@ def is_valid_telegram_token(token: str) -> bool:
     return bool(TELEGRAM_TOKEN_RE.match(token.strip()))
 
 
+def auto_detect_from_terminal() -> Tuple[List[str], List[str]]:
+    """Terminalde girilen metinden Discord webhooks ve Telegram tokenlarını tespit et"""
+    console.print("\n[cyan]Terminale metni yapıştır veya yazıyı gir (Bitirmek için 'END' yazıp Enter'a bas):[/cyan]")
+    
+    lines = []
+    while True:
+        try:
+            line = input()
+            if line.strip().upper() == "END":
+                break
+            lines.append(line)
+        except EOFError:
+            break
+    
+    full_text = "\n".join(lines)
+    
+    # Discord webhooks tespit et
+    discord_webhooks = DISCORD_WEBHOOK_RE.findall(full_text)
+    discord_webhooks = list(set(discord_webhooks))  # Duplikatlari kaldır
+    
+    # Telegram tokenları tespit et
+    telegram_tokens = TELEGRAM_TOKEN_RE.findall(full_text)
+    telegram_tokens = list(set(telegram_tokens))  # Duplikatlari kaldır
+    
+    return discord_webhooks, telegram_tokens
+
+
 async def handle_manual_discord(session: aiohttp.ClientSession) -> None:
     console.print("\n1) Manual Discord webhook review and removal")
     url = input("Discord webhook URL: ").strip()
@@ -223,14 +251,135 @@ async def handle_auto(session: aiohttp.ClientSession) -> None:
             console.print(f"[red]FAILED:[/red] {mask_secret(target)} -> {msg}")
 
 
+async def handle_terminal_scan(session: aiohttp.ClientSession) -> None:
+    """4) Terminalde Discord webhooks ve Telegram tokenlarını otomatik tespit et"""
+    console.print("\n[bold cyan]4) Terminal Scanner - Auto Detect Discord & Telegram[/bold cyan]")
+    
+    # Terminalde metni al
+    discords, telegrams = auto_detect_from_terminal()
+    
+    if not discords and not telegrams:
+        console.print("[yellow]Hiçbir Discord webhook veya Telegram token bulunamadı.[/yellow]")
+        return
+    
+    # Sonuçları tablo formatında göster
+    table = Table(title="[bold]Tespit Edilen Hedefler[/bold]", show_header=True, header_style="bold magenta")
+    table.add_column("Tür", style="cyan")
+    table.add_column("Değer (Maskelendi)", style="green")
+    table.add_column("Durum", style="yellow")
+    
+    # Discord webhooks ekle
+    for webhook in discords:
+        is_valid = "✓ Geçerli" if is_valid_discord_webhook(webhook) else "✗ Geçersiz"
+        table.add_row("Discord Webhook", mask_secret(webhook, 18, 8), is_valid)
+    
+    # Telegram tokenları ekle
+    for token in telegrams:
+        is_valid = "✓ Geçerli" if is_valid_telegram_token(token) else "✗ Geçersiz"
+        table.add_row("Telegram Token", mask_secret(token), is_valid)
+    
+    console.print(table)
+    console.print(f"\n[bold]Toplam Bulundu:[/bold] {len(discords)} Discord Webhook, {len(telegrams)} Telegram Token")
+    
+    # İşlem seçeneği
+    choice = input("\nİşlem: [D]ile (D), [V]erify et (V), [S]onu bugünkü (S), [İ]ptal (E): ").strip().lower()
+    
+    if choice == "e":
+        console.print("[yellow]İşlem iptal edildi.[/yellow]")
+        return
+    
+    if choice not in ("d", "v", "s"):
+        console.print("[red]Geçersiz seçim.[/red]")
+        return
+    
+    sem = asyncio.Semaphore(8)
+    
+    # Verify: Webhook ve tokenları kontrol et
+    if choice == "v":
+        console.print("\n[cyan]Doğrulama başlıyor...[/cyan]")
+        
+        async def verify_discord(url: str):
+            async with sem:
+                ok, _ = await get_discord_info(session, url)
+                return ("Discord", url, ok)
+        
+        async def verify_telegram(token: str):
+            async with sem:
+                ok, _ = await get_telegram_info(session, token)
+                return ("Telegram", token, ok)
+        
+        tasks = [asyncio.create_task(verify_discord(d)) for d in discords] + \
+                [asyncio.create_task(verify_telegram(t)) for t in telegrams]
+        
+        for fut in asyncio.as_completed(tasks):
+            typ, target, ok = await fut
+            status = "[green]✓ Aktif[/green]" if ok else "[red]✗ Inaktif/Geçersiz[/red]"
+            console.print(f"{typ}: {mask_secret(target)} -> {status}")
+        return
+    
+    # Delete: Webhook ve tokenları sil
+    elif choice == "d":
+        confirm = input("[bold red]UYARI: Bu işlem geri döndürülemez! Devam? (E/H):[/bold red] ").strip().lower()
+        if confirm != "e":
+            console.print("[yellow]Silme işlemi iptal edildi.[/yellow]")
+            return
+        
+        console.print("\n[cyan]Silme işlemi başlıyor...[/cyan]")
+        
+        async def nuke_d(url: str):
+            async with sem:
+                ok, msg = await nuke_discord_webhook(session, url)
+                return ("Discord", url, ok, msg)
+        
+        async def nuke_t(token: str):
+            async with sem:
+                ok, msg = await nuke_telegram_bot(session, token)
+                return ("Telegram", token, ok, msg)
+        
+        tasks = [asyncio.create_task(nuke_d(d)) for d in discords] + \
+                [asyncio.create_task(nuke_t(t)) for t in telegrams]
+        
+        for fut in asyncio.as_completed(tasks):
+            typ, target, ok, msg = await fut
+            if ok:
+                console.print(f"[green]✓ {typ}:[/green] {mask_secret(target)} -> {msg}")
+            else:
+                console.print(f"[red]✗ {typ}:[/red] {mask_secret(target)} -> {msg}")
+    
+    # Spam: Webhook'lara spam gönder
+    elif choice == "s":
+        confirm = input("[bold yellow]Spam bombardımanı başlat? (E/H):[/bold yellow] ").strip().lower()
+        if confirm != "e":
+            console.print("[yellow]Spam işlemi iptal edildi.[/yellow]")
+            return
+        
+        console.print("\n[cyan]Spam gönderiliyor...[/cyan]")
+        spam_count = len(discords)
+        
+        async def spam_d(url: str, count: int):
+            async with sem:
+                results = []
+                for i in range(count):
+                    ok, msg = await spam_discord_webhook(session, url, f"[SPAM {i+1}] Tentivory")
+                    results.append(ok)
+                return ("Discord", url, sum(results))
+        
+        tasks = [asyncio.create_task(spam_d(d, 5)) for d in discords]
+        
+        for fut in asyncio.as_completed(tasks):
+            typ, target, sent = await fut
+            console.print(f"[cyan]{typ}:[/cyan] {mask_secret(target)} -> {sent} mesaj gönderildi")
+
+
 async def main_async() -> None:
-    console.print(Panel.fit("TENTIVORY - Webhook & Token Response Tool v2.0", border_style="blue"))
+    console.print(Panel.fit("TENTIVORY - Webhook & Token Response Tool v3.0", border_style="blue"))
     console.print("Available actions:")
     console.print("1) Manual Discord webhook review and removal")
     console.print("2) Manual Telegram bot review and removal")
     console.print("3) Automatic extractor and bulk response")
+    console.print("4) Terminal Scanner - Auto Detect Discord & Telegram")
 
-    choice = input("Select an action (1/2/3): ").strip()
+    choice = input("Select an action (1/2/3/4): ").strip()
 
     async with aiohttp.ClientSession() as session:
         if choice == "1":
@@ -239,6 +388,8 @@ async def main_async() -> None:
             await handle_manual_telegram(session)
         elif choice == "3":
             await handle_auto(session)
+        elif choice == "4":
+            await handle_terminal_scan(session)
         else:
             console.print("[red]Invalid selection.[/red]")
 
