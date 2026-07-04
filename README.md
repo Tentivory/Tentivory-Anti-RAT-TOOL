@@ -1,4 +1,10 @@
+
 # Tentivory-Anti-RAT-TOOL
-Discord veya telegramdan wephook üzerinden iletişime geçen RATların wephooklarını silen yada Spam bombardımanı yaptıran açık kaynaklı bir Python projesi
-Gereklilikler pip install rich requests
-Python
+
+Discord ve Telegram üzerinden veri çalan RAT (Remote Access Trojan) türevlerinin haberleşme hatlarını (Webhook/Token) etkisiz hale getiren, tamamen eğitim amaçlı geliştirilmiş bir güvenlik aracıdır.
+
+## Kurulum
+1. Python yüklü olduğundan emin ol.
+2. Gerekli kütüphaneleri yükle:
+   ```bash
+   pip install rich requests
