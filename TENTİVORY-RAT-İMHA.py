@@ -6,7 +6,7 @@ Asenkron versiyon: asyncio + aiohttp ile çalışır.
 - Discord webhook'ları için GET/POST/DELETE işlemleri asenkron olarak yapılır.
 - Telegram tokenları için getMe ve deleteWebhook çağrıları yapılır (bot token'larını Telegram API üzerinden tamamen iptal etmek mümkün değildir; bu araç bot ile bağlantıyı koparmayı dener).
 
-Not: Gerçek tahribat yapmadan önce --dry-run modu veya kullanıcı onayı eklemeyi düşünün.
+Not: Gerçek müdahale işlemleri gerçekleştirirken --dry-run modu veya açık kullanıcı onayı kullanmanızı tavsiye ederiz.
 """
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ async def request_with_retry(
                     if wait is None:
                         # fallback exponential backoff
                         wait = int(backoff)
-                    console.print(f"[yellow]429 Rate limited. Bekleniyor: {wait} saniye (deneme {attempt}/{max_retries})[/yellow]")
+                    console.print(f"[yellow]429 - Rate limit. Bekleniyor: {wait} saniye (deneme {attempt}/{max_retries})[/yellow]")
                     await asyncio.sleep(wait)
                     backoff *= RETRY_BACKOFF
                     if attempt >= max_retries:
@@ -182,7 +182,7 @@ def is_valid_telegram_token(token: str) -> bool:
 
 
 async def handle_manual_discord(session: aiohttp.ClientSession) -> None:
-    console.print("\n[bold blue][⇒] 1 NUMARALI ODA AÇILDI: Manuel Discord Webhook İmha[/bold blue]")
+    console.print("\n[bold blue]1) Manuel Discord Webhook İnceleme ve Kaldırma[/bold blue]")
     url = input("Discord Webhook URL girin: ").strip()
     if not is_valid_discord_webhook(url):
         console.print("[red]Geçersiz Discord webhook formatı.[/red]")
@@ -191,19 +191,19 @@ async def handle_manual_discord(session: aiohttp.ClientSession) -> None:
     if not ok:
         console.print("[red]Webhook doğrulanamadı veya erişilemedi.[/red]")
         return
-    onay = input("\nBu Tenti RAT iletişim kanalı imha edilsin mi? (E/H): ").strip().lower()
+    onay = input("\nOnaylıyor musunuz? (E/H): ").strip().lower()
     if onay == "e":
         s_ok, s_msg = await spam_discord_webhook(session, url)
-        console.print(f"[cyan]Spam sonucu:[/cyan] {s_ok} {s_msg}")
+        console.print(f"[cyan]Test gönderimi sonucu:[/cyan] {s_ok} {s_msg}")
         n_ok, n_msg = await nuke_discord_webhook(session, url)
-        console.print(f"[cyan]Nuke sonucu:[/cyan] {n_ok} {n_msg}")
+        console.print(f"[cyan]Kaldırma sonucu:[/cyan] {n_ok} {n_msg}")
     else:
-        console.print("[yellow]İptal edildi.[/yellow]")
+        console.print("[yellow]İşlem iptal edildi.[/yellow]")
 
 
 async def handle_manual_telegram(session: aiohttp.ClientSession) -> None:
-    console.print("\n[bold purple][⇒] 2 NUMARALI ODA AÇILDI: Manuel Telegram Token İmha[/bold purple]")
-    token = input("Tenti RAT Bot Token girin: ").strip()
+    console.print("\n[bold purple]2) Manuel Telegram Bot İnceleme ve Kaldırma[/bold purple]")
+    token = input("Bot token girin: ").strip()
     if not is_valid_telegram_token(token):
         console.print("[red]Geçersiz Telegram token formatı.[/red]")
         return
@@ -211,16 +211,16 @@ async def handle_manual_telegram(session: aiohttp.ClientSession) -> None:
     if not ok:
         console.print("[red]Token doğrulanamadı veya erişilemedi.[/red]")
         return
-    onay = input("\nSaldırganın bu bot üzerindeki veri bağı koparılsın mı? (E/H): ").strip().lower()
+    onay = input("\nOnaylıyor musunuz? (E/H): ").strip().lower()
     if onay == "e":
         n_ok, n_msg = await nuke_telegram_bot(session, token)
-        console.print(f"[cyan]Nuke sonucu:[/cyan] {n_ok} {n_msg}")
+        console.print(f"[cyan]Kaldırma sonucu:[/cyan] {n_ok} {n_msg}")
     else:
-        console.print("[yellow]İptal edildi.[/yellow]")
+        console.print("[yellow]İşlem iptal edildi.[/yellow]")
 
 
 async def handle_auto(session: aiohttp.ClientSession) -> None:
-    console.print("\n[bold yellow][⇒] 3 NUMARALI LABORATUVAR AÇILDI: Akıllı Kod Deşifresi[/bold yellow]")
+    console.print("\n[bold yellow]3) Otomatik Deşifre ve Toplu Müdahale[/bold yellow]")
     # auto_extractor fonksiyonunun senkron olduğunu varsayıyoruz; eğer asenkron ise uygun şekilde çağrın
     try:
         extracted = auto_extractor()
@@ -277,17 +277,17 @@ async def handle_auto(session: aiohttp.ClientSession) -> None:
 
 async def main_async() -> None:
     console.print(Panel.fit(
-        "[bold red]💥 TENTI RAT WEBHOOK & TOKEN İMHA SİSTEMİ v2.0 💥[/bold red]\n"
-        "[bold blue]Kolay Kullanım Siber Savunma ve C2 Hattı Çökertme Paneli[/bold blue]",
-        border_style="red"
+        "[bold red]TENTIVORY - Webhook ve Token Müdahale Aracı v2.0[/bold red]\n"
+        "[bold blue]Siber Savunma ve Olay Müdahale Aracı[/bold blue]",
+        border_style="blue"
     ))
 
-    console.print("[bold cyan][?] Hangi numarayı açmak istiyorsunuz? Sayıyı yazıp ENTER'a basın:[/bold cyan]\n")
-    console.print("[bold magenta][1] NUMARA[/bold magenta] -> [bold white]Manuel Discord İmha Odası[/bold white]")
-    console.print("[bold magenta][2] NUMARA[/bold magenta] -> [bold white]Manuel Telegram İmha Odası[/bold white]")
-    console.print("[bold magenta][3] NUMARA[/bold magenta] -> [bold white]Akıllı Kod Deşifre & Toplu İmha Laboratuvarı[/bold white]\n")
+    console.print("[bold cyan]Hangi seçeneği çalıştırmak istiyorsunuz? (1/2/3):[/bold cyan]\n")
+    console.print("[bold magenta]1) Manuel Discord Webhook İnceleme ve Kaldırma[/bold magenta]")
+    console.print("[bold magenta]2) Manuel Telegram Bot İnceleme ve Kaldırma[/bold magenta]")
+    console.print("[bold magenta]3) Otomatik Deşifre ve Toplu Müdahale[/bold magenta]\n")
 
-    secim = input("Açmak istediğiniz numara (1 / 2 / 3): ").strip()
+    secim = input("Seçiminiz: ").strip()
 
     async with aiohttp.ClientSession() as session:
         if secim == "1":
@@ -297,7 +297,7 @@ async def main_async() -> None:
         elif secim == "3":
             await handle_auto(session)
         else:
-            console.print("[bold red][-] Geçersiz numara! Lütfen sadece 1, 2 veya 3 yazın.[/bold red]")
+            console.print("[bold red]Geçersiz seçim. Lütfen 1, 2 veya 3 girin.[/bold red]")
 
 
 def main() -> int:
@@ -305,7 +305,7 @@ def main() -> int:
         asyncio.run(main_async())
         return 0
     except KeyboardInterrupt:
-        console.print("\n[yellow]Kullanıcı tarafından iptal edildi.[/yellow]")
+        console.print("\n[bold yellow]Çalışma kullanıcı tarafından iptal edildi.[/bold yellow]")
         return 1
     except Exception as exc:
         console.print(f"[red]Beklenmeyen hata: {exc}[/red]")
