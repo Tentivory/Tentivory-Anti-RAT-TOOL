@@ -141,6 +141,28 @@ def is_valid_telegram_token(token: str) -> bool:
     return bool(TELEGRAM_TOKEN_RE.match(token.strip()))
 
 
+def auto_extract_from_file(file_path: str) -> Tuple[List[str], List[str]]:
+    """Dosyadan Discord webhooks ve Telegram tokenlarını tespit et"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        discord_webhooks = DISCORD_WEBHOOK_RE.findall(content)
+        telegram_tokens = TELEGRAM_TOKEN_RE.findall(content)
+        return list(set(discord_webhooks)), list(set(telegram_tokens))
+    except Exception as e:
+        console.print(f"[red]Dosya okunurken hata: {e}[/red]")
+        return [], []
+
+
+def auto_extractor() -> Tuple[List[str], List[str]]:
+    """Eksik fonksiyon - dosyadan otomatik tespit"""
+    file_path = input("Kontrol edilecek dosya yolunu girin: ").strip()
+    if not file_path:
+        console.print("[red]Dosya yolu boş olamaz.[/red]")
+        return [], []
+    return auto_extract_from_file(file_path)
+
+
 def auto_detect_from_terminal() -> Tuple[List[str], List[str]]:
     """Terminalde girilen metinden Discord webhooks ve Telegram tokenlarını tespit et"""
     console.print("\n[cyan]Terminale metni yapıştır veya yazıyı gir (Bitirmek için 'END' yazıp Enter'a bas):[/cyan]")
@@ -169,7 +191,7 @@ def auto_detect_from_terminal() -> Tuple[List[str], List[str]]:
 
 
 async def handle_manual_discord(session: aiohttp.ClientSession) -> None:
-    console.print("\n1) Manual Discord webhook review and removal")
+    console.print("\n[bold cyan]1) Manual Discord webhook review and removal[/bold cyan]")
     url = input("Discord webhook URL: ").strip()
     if not is_valid_discord_webhook(url):
         console.print("[red]Invalid Discord webhook format.[/red]")
@@ -189,7 +211,7 @@ async def handle_manual_discord(session: aiohttp.ClientSession) -> None:
 
 
 async def handle_manual_telegram(session: aiohttp.ClientSession) -> None:
-    console.print("\n2) Manual Telegram bot review and removal")
+    console.print("\n[bold cyan]2) Manual Telegram bot review and removal[/bold cyan]")
     token = input("Bot token: ").strip()
     if not is_valid_telegram_token(token):
         console.print("[red]Invalid Telegram token format.[/red]")
@@ -207,7 +229,7 @@ async def handle_manual_telegram(session: aiohttp.ClientSession) -> None:
 
 
 async def handle_auto(session: aiohttp.ClientSession) -> None:
-    console.print("\n3) Automatic extractor and bulk response")
+    console.print("\n[bold cyan]3) Automatic extractor and bulk response[/bold cyan]")
     try:
         extracted = auto_extractor()
     except Exception as e:
@@ -217,6 +239,11 @@ async def handle_auto(session: aiohttp.ClientSession) -> None:
         console.print("[red]Auto extractor returned unexpected result.[/red]")
         return
     discords, telegrams = extracted
+    
+    if not discords and not telegrams:
+        console.print("[yellow]Hiçbir Discord webhook veya Telegram token bulunamadı.[/yellow]")
+        return
+    
     sem = asyncio.Semaphore(8)
 
     async def _nuke_d(durl: str):
@@ -282,7 +309,7 @@ async def handle_terminal_scan(session: aiohttp.ClientSession) -> None:
     console.print(f"\n[bold]Toplam Bulundu:[/bold] {len(discords)} Discord Webhook, {len(telegrams)} Telegram Token")
     
     # İşlem seçeneği
-    choice = input("\nİşlem: [D]ile (D), [V]erify et (V), [S]onu bugünkü (S), [İ]ptal (E): ").strip().lower()
+    choice = input("\nİşlem: [D]ile (D), [V]erify et (V), [S]pam (S), [İ]ptal (E): ").strip().lower()
     
     if choice == "e":
         console.print("[yellow]İşlem iptal edildi.[/yellow]")
@@ -354,7 +381,6 @@ async def handle_terminal_scan(session: aiohttp.ClientSession) -> None:
             return
         
         console.print("\n[cyan]Spam gönderiliyor...[/cyan]")
-        spam_count = len(discords)
         
         async def spam_d(url: str, count: int):
             async with sem:
@@ -372,12 +398,13 @@ async def handle_terminal_scan(session: aiohttp.ClientSession) -> None:
 
 
 async def main_async() -> None:
-    console.print(Panel.fit("TENTIVORY - Webhook & Token Response Tool v3.0", border_style="blue"))
-    console.print("Available actions:")
+    console.print(Panel.fit("TENTIVORY - Webhook & Token Response Tool v3.0 (FIXED)", border_style="blue"))
+    console.print("\n[bold]Available actions:[/bold]")
     console.print("1) Manual Discord webhook review and removal")
     console.print("2) Manual Telegram bot review and removal")
     console.print("3) Automatic extractor and bulk response")
     console.print("4) Terminal Scanner - Auto Detect Discord & Telegram")
+    console.print("")
 
     choice = input("Select an action (1/2/3/4): ").strip()
 
@@ -403,6 +430,8 @@ def main() -> int:
         return 1
     except Exception as exc:
         console.print(f"[red]Unexpected error: {exc}[/red]")
+        import traceback
+        traceback.print_exc()
         return 2
 
 
